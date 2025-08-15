@@ -54,6 +54,7 @@ def _http_get(url: str, params: dict, headers: dict, attempts: int, timeout: flo
     return None
 
 
+# Fetch external data from an API or simulate it if offline
 def fetch_external_data(start_date: str, end_date: str, offline: bool = False) -> pd.DataFrame:
     """
     Fetches weather/metadata-like data by station and date.
@@ -73,7 +74,7 @@ def fetch_external_data(start_date: str, end_date: str, offline: bool = False) -
     timeout = float(os.getenv("API_TIMEOUT_SECONDS", "10"))
     backoff = float(os.getenv("API_BACKOFF_SECONDS", "1.5"))
 
-    # Example request parameters (adapt or map to your chosen API)
+    # Example request parameters (adapt or map to a chosen API)
     params = {
         "date_from": start.isoformat(),
         "date_to": end.isoformat(),
@@ -82,7 +83,7 @@ def fetch_external_data(start_date: str, end_date: str, offline: bool = False) -
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     try:
-        # You can swap the parsing below to match your API’s response shape
+        # Parsing below can be swapped to match chosen API’s response shape
         raw = _http_get(base_url, params, headers, attempts, timeout, backoff)
         if not raw:
             logging.error({"event": "api_fallback_simulation"})
