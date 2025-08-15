@@ -1,4 +1,3 @@
-# src/fetch_api.py
 import os
 import random
 import logging
