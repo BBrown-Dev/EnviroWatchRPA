@@ -9,7 +9,7 @@ import pandas as pd
 from faker import Faker
 
 # Ensure data directory exists
-os.makedirs("data", exist_ok=True)
+os.makedirs("../data", exist_ok=True)
 fake = Faker()
 
 # Generate synthetic air quality data
@@ -31,7 +31,7 @@ def generate_air_quality(rows_per_station_per_day=1, days_back=30):
 
 # Main function to create synthetic database and CSV
 def main():
-    con = sqlite3.connect("data/env.db")
+    con = sqlite3.connect("../data/env.db")
     aq = generate_air_quality()
     aq.to_sql("air_quality", con, if_exists="replace", index=False)
     con.close()
@@ -41,7 +41,7 @@ def main():
         {"city": "Madison", "renewable_share": 0.51},
         {"city": "Minneapolis", "renewable_share": 0.47},
     ])
-    renew.to_csv("data/renewable_share.csv", index=False)
+    renew.to_csv("../data/renewable_share.csv", index=False)
     print("✅ synthetic database saved to data/env.db and renewable_share.csv")
 
 if __name__ == "__main__":
