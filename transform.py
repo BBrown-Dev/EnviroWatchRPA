@@ -45,7 +45,9 @@ def clean_and_join(api_df: pd.DataFrame, aq_df: pd.DataFrame, renew_df: pd.DataF
     # Join air quality + api weather by station_id and date
     df = pd.merge(aq, api, on=["station_id", "date"], how="left")
 
-    # If city is missing from API, infer via renewable table later
+    # Fill missing city with 'Unknown' before next merge
+    df["city"] = df["city"].fillna("Unknown")
+
     # Join renewable share by city
     df = pd.merge(df, renew, on="city", how="left")
 
