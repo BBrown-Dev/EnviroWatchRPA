@@ -1,43 +1,97 @@
-# EnviroWatchRPA environmental data pipeline
+# EnviroWatchRPA - Environmental Data Pipeline
 
-## Objective
-Replace a manual analyst workflow with a robust Python pipeline that retrieves environmental signals, merges them with local tabular data, computes KPIs, and stores enriched outputs for analytics and reporting.
+## 1. Objective
+Automate a previously manual analyst workflow into a reliable, auditable, and observable Python pipeline that:
+- **Acquires signals:** Retrieves environmental data from live APIs or offline synthetic generation.
+- **Enriches context:** Integrates local datasets for city-level interpretation and KPIs.
+- **Computes KPIs:** Applies transparent, reproducible logic for trend and category metrics.
+- **Persists outputs:** Produces structured files for analytics, dashboards, and reporting.
 
-## Approach
-- Data ingestion from an external API (or simulated offline).
-- Local data from SQLite (air quality and CO₂) and a file-based renewable share source.
-- Transformations: cleaning, joins, aggregations, rolling trends.
-- Storage to Parquet with accompanying CSV KPI exports.
-- Observability via JSON logs, rotation, and graceful fallbacks.
+---
 
-## Data sourcing and generation
-- Online mode fetches station-level weather/metadata (date, station_id, city, temp, humidity, precipitation).
-- Offline mode synthesizes realistic station, date, and climate-like signals across multiple cities.
-- Local SQLite contains `air_quality` with `aqi` and `co2_ppm`. If missing and offline, it’s generated.
-- Renewable share is loaded from `data/renewable_share.csv` or simulated if absent.
+## 2. Design principles
+- **Reliability:** Idempotent runs, fault-tolerant logic, schema-driven transformations.
+- **Traceability:** Explicit, documented joins, conversions, and aggregations.
+- **Observability:** Structured JSON logs, KPI verification, and actionable error context.
+- **Extensibility:** Minimal-friction adaptation to new data providers or schema changes.
 
-## Transformations and KPIs
-- Joins by `station_id` and `date`, then by `city` for renewable share.
-- Cleaning: type coercion, missing value handling, duplicate removal.
-- KPIs:
-  - Average AQI by city/day.
-  - 7-day rolling average of CO₂ and day-over-day delta by city.
-  - AQI category days by city.
-  - Clean energy alignment signal (renewable_share ≥ 0.5 and avg_aqi ≤ 100 ⇒ “Aligned”).
+---
 
-## Outputs
-- Enriched dataset: `data/final_enriched.parquet`.
-- KPI CSVs: `data/kpis/daily_city.csv`, `aqi_categories.csv`, `alignment.csv`.
-- JSON logs with rotation in `data/logs/app.log`.
+## 3. Data sources and schema
+### 3.1 Remote (online mode)
+- **Weather + metadata API:** Station-level rows with:
+  - `date`, `station_id`, `city`, `lat`, `lon`
+  - `temp_c`, `temp_f`, `humidity`, `precip_mm`
 
-## Configuration and execution
-- Environment via `.env` (API endpoint, keys, timeouts, retries).
-- CLI args for offline mode, dates, DB path, output path, log level.
+### 3.2 Local
+- **SQLite — air_quality**
+  - Fields: `station_id`, `date`, `aqi`, `co2_ppm`
+  - Key: `(station_id, date)`
+- **CSV — renewable_share**
+  - Fields: `city`, `renewable_share` (0–1 float)
 
-## Testing
-- Unit test validates KPI correctness for rolling CO₂ deltas on a controlled dataset.
+### 3.3 Offline simulation
+- **Synthetic generation:** Creates station/date climate series plus air quality when absent.
+- **Dual-unit persistence:** Weather rows include both Celsius (`temp_c`) and Fahrenheit (`temp_f`) to avoid downstream ambiguity.
 
-## Limitations and assumptions
-- API schema mapped into a normalized shape; adapt parser for a specific provider.
-- Renewable share is a simplified proxy for clean energy adoption.
-- Rolling window assumes daily frequency without gaps (small gaps handled by rolling min_periods=1).
+---
+
+## 4. Transformations
+- **Cleaning:** Type coercion, range validation, null handling, and deduplication.
+- **Joining:**
+  1. **Station/date join:** `(station_id, date)` between weather and air_quality.
+  2. **City enrichment:** `(city)` to attach `renewable_share`.
+- **Enrichment:** Ensures `temp_f` is present and consistent with `temp_c` for all modes.
+- **Aggregation:** Rolling window metrics and categorical tallies at city/day grain.
+
+---
+
+## 5. KPIs
+1. **Average AQI** by city/day.
+2. **CO₂ 7‑day rolling average** (`co2_7d_ma`).
+3. **CO₂ day‑over‑day delta** (`co2_7d_delta`).
+4. **AQI category day counts** by city.
+5. **Clean energy alignment:** City/day meets renewable and air quality criteria.
+
+---
+
+## 6. Outputs
+| Output type          | Location                       | Notes                            |
+|----------------------|--------------------------------|----------------------------------|
+| Enriched dataset     | `data/final_enriched.parquet`  | Includes `temp_c` & `temp_f`     |
+| Daily KPIs (CSV)     | `data/kpis/daily_city.csv`     | Includes CO₂ trends              |
+| AQI categories (CSV) | `data/kpis/aqi_categories.csv` | Categorized AQI days             |
+| Alignment (CSV)      | `data/kpis/alignment.csv`      | Renewable/AQI alignment flag     |
+| Logs                 | `data/logs/app.log`            | JSON, rotated                    |
+
+---
+
+## 7. Execution and configuration
+- **Environment:** `.env` for API base URLs, keys, and runtime settings.
+- **CLI arguments:**
+  - **Mode:** `--offline` or `--online`
+  - **Window:** `--start-date`, `--end-date`
+  - **Paths:** `--db-path`, `--output`
+  - **Logging:** `--log-level` (`DEBUG|INFO|...`)
+  - **Units:** `--include-fahrenheit` (no-op if `temp_f` is already persisted)
+
+---
+
+## 8. Testing strategy
+- **Temperature logic:** Verifies accurate °C↔°F conversion and dual-unit consistency.
+- **CO₂ trends:** Validates rolling averages and day-over-day deltas on controlled series.
+- **Integration correctness:** Ensures key joins and city enrichment behave under missing/synthetic data.
+
+---
+
+## 9. Limitations and assumptions
+- **Provider normalization:** External API schemas are mapped to an internal canonical form.
+- **Renewable proxy:** `renewable_share` is a simplified proxy, not a complete energy mix model.
+- **Temporal gaps:** Rolling windows assume daily cadence; limited gaps tolerated with `min_periods=1`.
+
+---
+
+## 10. Future enhancements
+- **Config-driven mappings:** Pluggable adapters for multiple API providers.
+- **Operational alerts:** Threshold-based notifications for KPI anomalies or ingest failures.
+- **Dashboard sync:** Optional auto-refresh hooks for downstream BI dashboards.
